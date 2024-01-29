@@ -46,10 +46,10 @@ module uart_tx#(
     input                           i_user_tx_valid     ,   // 接收输入有效
     input [P_UART_DATA_WIDTH-1 :0]  i_user_tx_data      ,   // 接收user输入
 
-    output  [15:0]                          o_cnt,
-    output                          o_tx_check,
-    output                          o_tx_active,
-    output  [P_UART_DATA_WIDTH-1 :0]                          o_data,
+    // output  [15:0]                          o_cnt,
+    // output                          o_tx_check,
+    // output                          o_tx_active,
+    // output  [P_UART_DATA_WIDTH-1 :0]                          o_data,
 
     output                          o_user_tx_ready     ,   // 输出准备好
     output                          o_uart_tx               // 串口输出 
@@ -81,10 +81,10 @@ assign   w_tx_active        =   i_user_tx_valid & o_user_tx_ready   ;
 assign   o_user_tx_ready    =   ro_user_tx_ready                    ;
 assign   o_uart_tx          =   ro_uart_tx                          ;
 
-assign   o_cnt              =   r_cnt                               ;
-assign   o_tx_check         =   r_tx_check                          ;
-assign   o_tx_active        =   w_tx_active                         ;
-assign   o_data             =   i_user_tx_data;
+// assign   o_cnt              =   r_cnt                               ;
+// assign   o_tx_check         =   r_tx_check                          ;
+// assign   o_tx_active        =   w_tx_active                         ;
+// assign   o_data             =   i_user_tx_data;
 
 
 
@@ -140,7 +140,7 @@ end
 //cnt       0 0 0 1 2 3 4 5 6 7 8 c s s       ready为0计数慢一拍（因为active为1后一拍 ready为0
 //data          0 1 2 3 4 5 6 7 8 c s s
 //ready     1 1 0 0 0 0 0 0 0 0 0 0 0 1
-//wxactive  1 1 0 0 0 0 0 0 0 0 0 0 0 1
+//wxactive  0 1 0 0 0 0 0 0 0 0 0 0 0 1
 always@(posedge i_clk, posedge i_rst)
 begin
     if(i_rst)

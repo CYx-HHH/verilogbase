@@ -195,26 +195,4 @@ begin
         r_rx_clk_rst <= r_rx_clk_rst;
 end
 
-
-
-/**/
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 endmodule

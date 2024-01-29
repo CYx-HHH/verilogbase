@@ -130,8 +130,8 @@ uart_drive#(
     .P_SYSTEM_CLK       (50_000_000)     ,
     .P_UART_BURD_RATE   (9600      )     ,
     .P_UART_DATA_WIDTH  (P_UART_DATA_WIDTH)     ,
-    .P_UART_CHECK_ON    (0         )     ,   // None=0 Odd-1 Even-2
-    .P_UART_STOP_WIDTH  (0         )         // 波特率
+    .P_UART_CHECK_ON    (1         )     ,   // None=0 Odd-1 Even-2
+    .P_UART_STOP_WIDTH  (2         )         // 波特率
 )uart_drive_d0(  
     .i_clk          (i_clk)             ,
     .i_rst          (i_rst)             ,

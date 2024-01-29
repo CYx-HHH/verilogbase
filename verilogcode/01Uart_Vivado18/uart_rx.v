@@ -31,8 +31,7 @@ module uart_rx#(
     input               i_clk                           ,
     input               i_rst                           ,
     input               i_uart_rx                       ,   // 串口输入
-    
-    output [1:0]        o_rx_delay,
+
     output                              o_uart_rx_valid ,   // 数据是否有效-校验
     output [P_UART_DATA_WIDTH-1 :0]     o_uart_rx_data      // 数据输出
 );
@@ -45,12 +44,13 @@ reg [15:0]                          r_cnt               ;
 reg                                 r_rx_check          ;
 reg [1 :0]                          r_uart_rx           ;   // 打两拍
 
-reg r_flag;
-reg r_rx_cache_clk ='d1;
+
+reg [15:0]                          r_delay2_cnt        ;   // 延时时钟
+
 
 assign o_uart_rx_data   =   ro_uart_rx_data;
 assign o_uart_rx_valid  =   ro_uart_rx_valid;
-assign  o_rx_delay=r_uart_rx;
+
 
 /* 节拍器 */
 
@@ -60,11 +60,11 @@ always@(posedge i_clk, posedge i_rst)
 begin
     if(i_rst)
         r_cnt <='d0;
+    else if(r_cnt == P_UART_DATA_WIDTH + P_UART_STOP_WIDTH +1 && P_UART_CHECK_ON > 0)
+        r_cnt <='d0;
     else if(r_cnt == P_UART_DATA_WIDTH + P_UART_STOP_WIDTH && P_UART_CHECK_ON == 0)
         r_cnt <='d0;
-    else if((r_cnt == P_UART_DATA_WIDTH + P_UART_STOP_WIDTH +1) && P_UART_CHECK_ON > 0)
-        r_cnt <='d0;
-    else if(i_uart_rx ==0 || r_cnt > 0)     // 用 r_uart_rx[0] cnt会慢一拍，cnt变成00123456781 
+    else if(i_uart_rx ==0 || r_cnt > 0)     // 用 r_uart_rx[0] cnt会慢一拍，cnt变成0012345678 
         r_cnt <= r_cnt +1;
     else
         r_cnt <= r_cnt;
@@ -80,27 +80,44 @@ begin
         r_uart_rx <={r_uart_rx[0], i_uart_rx};
 end
 
-// 0 0 1 1 0 0 0
-// 1 1 1 0 0 1 1
-always@(posedge i_clk, posedge i_rst)   
-begin
-    if(i_rst || !r_rx_cache_clk)
-        r_flag <='d0;
-    else if(r_cnt == P_UART_DATA_WIDTH)
-        r_flag <='d1;
-    else 
-        r_flag <= r_flag;
-end
+// // 0 0 1 1 0 0 0
+// // 1 1 1 0 0 1 1
+// always@(posedge i_clk, posedge i_rst)   
+// begin
+//     if(i_rst || !r_rx_cache_clk)
+//         r_flag <='d0;
+//     else if(r_cnt == P_UART_DATA_WIDTH)
+//         r_flag <='d1;
+//     else 
+//         r_flag <= r_flag;
+// end
 
+// always@(posedge i_clk, posedge i_rst)
+// begin
+//     if(i_rst || !r_flag)
+//         r_rx_cache_clk <= ~r_flag;
+//     else if(r_flag)
+//         r_rx_cache_clk <= ~r_flag;
+//     else 
+//         r_rx_cache_clk <= r_rx_cache_clk;
+// end
+// i_uart_rx    0 1 2 3 4 5 6 7 8 9 10
+// rcnt         0 1 2 3 4 5
+// delaycnt     0 0 0 1 2 3 4 5  delay_cnt慢一拍
 always@(posedge i_clk, posedge i_rst)
 begin
-    if(i_rst || !r_flag)
-        r_rx_cache_clk <= ~r_flag;
-    else if(r_flag)
-        r_rx_cache_clk <= ~r_flag;
+    if(i_rst)
+        r_delay2_cnt <= 'd0;
+    else if(r_delay2_cnt == P_UART_DATA_WIDTH + P_UART_STOP_WIDTH + 1 &&  P_UART_CHECK_ON > 0)
+        r_delay2_cnt <= 'd0;
+    else if(r_delay2_cnt == P_UART_DATA_WIDTH + P_UART_STOP_WIDTH &&  P_UART_CHECK_ON == 0)
+        r_delay2_cnt <= 'd0;
+    else if(r_uart_rx[1] == 0 || r_delay2_cnt > 0) 
+        r_delay2_cnt <= r_delay2_cnt + 1;
     else 
-        r_rx_cache_clk <= r_rx_cache_clk;
+        r_delay2_cnt <= r_delay2_cnt;   
 end
+
 
 
 /* 数据接收 */
@@ -109,11 +126,9 @@ always@(posedge i_clk, posedge i_rst)
 begin
     if(i_rst)          
         ro_uart_rx_data <= 'd0;
-    else if(r_cnt <= P_UART_DATA_WIDTH && r_cnt >= 3)     // 数据位 延两拍
+    else if(r_delay2_cnt >=1 && r_delay2_cnt <= P_UART_DATA_WIDTH)     // 数据位 延两拍
         ro_uart_rx_data <= {r_uart_rx[1], ro_uart_rx_data[P_UART_DATA_WIDTH-1: 1]}; //接收低位
                       // {ro_uart_rx_data[P_UART_DATA_WIDTH - 2: 0], r_uart_rx[1]} //接收高位
-    else if(r_flag)
-        ro_uart_rx_data <= {r_uart_rx[1], ro_uart_rx_data[P_UART_DATA_WIDTH-1: 1]}; 
     else
         ro_uart_rx_data <= 'd0;
 end
@@ -125,10 +140,7 @@ always@(posedge i_clk, posedge i_rst)
 begin
     if(i_rst || r_cnt == 0)
         r_rx_check <='d0;        
-    else if(r_cnt <= P_UART_DATA_WIDTH && P_UART_CHECK_ON > 0)
-        r_rx_check <= r_rx_check ^ r_uart_rx[1];
-
-    else if(r_flag && P_UART_CHECK_ON > 0)
+    else if(r_delay2_cnt >=1 && r_delay2_cnt <= P_UART_DATA_WIDTH && P_UART_CHECK_ON > 0)
         r_rx_check <= r_rx_check ^ r_uart_rx[1];
     else
         r_rx_check <= 'd0;
@@ -138,11 +150,11 @@ always@(posedge i_clk, posedge i_rst)
 begin
     if(i_rst)
         ro_uart_rx_valid <= 1'd0;
-    else if(r_cnt == P_UART_DATA_WIDTH && P_UART_CHECK_ON == 0)
+    else if(P_UART_CHECK_ON == 0)
+        ro_uart_rx_valid <= 'd0;
+    else if(r_delay2_cnt == P_UART_DATA_WIDTH && P_UART_CHECK_ON ==1 && r_uart_rx[0] == !r_rx_check)
         ro_uart_rx_valid <= 'd1;
-    else if(!r_flag && !r_rx_cache_clk && r_cnt > P_UART_DATA_WIDTH && P_UART_CHECK_ON == 1 && r_uart_rx[0] == !r_rx_check)
-        ro_uart_rx_valid <= 'd1;
-    else if(!r_flag && !r_rx_cache_clk && r_cnt > P_UART_DATA_WIDTH && P_UART_CHECK_ON == 2 && r_uart_rx[0] == r_rx_check)
+    else if(r_delay2_cnt == P_UART_DATA_WIDTH && P_UART_CHECK_ON == 2 && r_uart_rx[0] == r_rx_check)
         ro_uart_rx_valid <= 'd1;
     else
         ro_uart_rx_valid <= 'd0;
