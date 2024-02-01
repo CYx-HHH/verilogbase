@@ -66,7 +66,7 @@ wire                            wo_uart_rx_valid ;
 wire  [P_UART_DATA_WIDTH-1 :0]  wo_uart_rx_data  ;
 
 
- assign  w_tx_active = w_tx_ready & r_tx_valid;
+assign  w_tx_active = w_tx_ready & r_tx_valid;
 
 
 // clk_div#(
