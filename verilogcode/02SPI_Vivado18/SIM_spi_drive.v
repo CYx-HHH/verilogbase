@@ -23,8 +23,8 @@
 module SIM_spi_drive();
 
 localparam      CLK_PERIOD          = 10;
-localparam      P_USER_DATA_WIDTH   = 8;
-localparam      P_READ_DATA_WIDTH   = 8;
+localparam      P_USER_DATA_WIDTH   = 9;
+localparam      P_READ_DATA_WIDTH   = 9;
 
 reg iclk, irst;
 
@@ -56,10 +56,10 @@ wire            w_active = ri_user_valid & o_ready;
 
 
 spi_drive#(
-    .P_USER_DATA_WIDTH(8),
-    .P_READ_DATA_WIDTH(8),
-    .P_CPOL           (0),
-    .P_CPHL           (0)
+    .P_USER_DATA_WIDTH(P_USER_DATA_WIDTH),
+    .P_READ_DATA_WIDTH(P_READ_DATA_WIDTH),
+    .P_CPOL           (1),
+    .P_CPHL           (0)       //  01不兼容
 )spi_drive_d0
 (
     .i_clk              (iclk),
@@ -83,7 +83,7 @@ always@(posedge wo_spi_clk, posedge irst)
 begin
     if(irst || o_ready)
     begin
-        ri_user_data    <=  8'h55;
+        ri_user_data    <=  9'h88;
         ri_user_valid   <='d1;
     end
     else if(w_active)

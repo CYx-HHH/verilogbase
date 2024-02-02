@@ -44,7 +44,7 @@ module spi_drive#(
 
 
 
- wire w_active = i_user_valid & o_ready;  // 上升沿和复位同步，不好判断
+ wire w_active = i_user_valid & o_ready;  
 
 
 reg                             ro_cs;
@@ -123,7 +123,7 @@ begin
         r_spi_dcnt <= r_spi_dcnt; 
 end
 
-always@(posedge i_clk, posedge i_rst)   // 并转串。我也不知道为什么要 多用了个寄存器寄存 直接输出不好吗
+always@(posedge i_clk, posedge i_rst)   // 并转串。
 begin
     if(i_rst)
         ri_user_data <=  'd0;
@@ -134,7 +134,6 @@ begin
     else
         ri_user_data <= ri_user_data;
 end
-
 
 always@(posedge i_clk, posedge i_rst)   //  发送数据 user--->mosi
 begin
@@ -148,24 +147,14 @@ begin
         ro_spi_mosi<= ro_spi_mosi;
 end
 
-// always@(posedge i_clk, posedge i_rst)   // 串转并 miso--->user   没必要多打一拍
-// begin
-//     if(i_rst)
-//         ri_miso <= 'd0;
-//     else if((!o_cs &&(r_spi_clk_cnt)) || w_active)
-//         ri_miso <= {i_spi_miso, ri_miso[P_READ_DATA_WIDTH-1 : 1]};
-//     else 
-//         ri_miso <= ri_miso;
-// end
-
 always@(posedge i_clk, posedge i_rst)// 串转并 miso--->user 没必要存一拍直接输出
 begin
     if(i_rst)
         ro_user_data <='d0;
-    else if(!o_cs && r_spi_dcnt==0)
-        ro_user_data <= {i_spi_miso, 7'b0};
+    else if(!o_cs &&(!r_spi_clk_cnt) && r_spi_dcnt ==0)
+        ro_user_data <= {7'b0, i_spi_miso};
     else if(!o_cs &&(!r_spi_clk_cnt))
-        ro_user_data <= {i_spi_miso, ro_user_data[P_READ_DATA_WIDTH-1 : 1]};
+        ro_user_data <= {ro_user_data[P_READ_DATA_WIDTH-2 : 0], i_spi_miso};
     else 
         ro_user_data <= ro_user_data;
 end
