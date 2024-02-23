@@ -44,8 +44,8 @@ module spi_drive#(
 
 
 
- wire w_active = i_user_valid & o_ready;  
-
+wire w_active = i_user_valid & o_ready;  
+wire w_run_negedge = !r_run & r_run_1d;  // 下降沿 
 
 reg                             ro_cs;
 reg                             ro_ready;
@@ -60,8 +60,8 @@ reg                             r_spi_clk_cnt;  // 01010101
 reg [P_READ_DATA_WIDTH-1:0]     ri_miso;            // 接收 miso data 输出 userdata
 reg [P_READ_DATA_WIDTH-1:0]     ro_user_data;
 reg                             ro_user_valid;
-//reg                           r_run;
-
+reg                             r_run;              // 传输计数结束后，user有效和ready有效/片选 占一个spi clk,要识别下降沿 
+reg                             r_run_1d;
 
 assign      o_spi_clk       = ro_spi_clk;
 assign      o_cs            = ro_cs;
@@ -71,13 +71,31 @@ assign      o_user_data     = ro_user_data;
 assign      o_user_valid    = ro_user_valid;
 
 
+always@(posedge i_clk, posedge i_rst)
+begin
+    if(i_rst ||(r_spi_dcnt == P_USER_DATA_WIDTH-1 && r_spi_clk_cnt))
+        r_run <= 'd0;
+    else if(w_active)
+        r_run <= 'd1;
+    else 
+        r_run <= r_run;
+end
+
+always@(posedge i_clk, posedge i_rst)
+begin
+    if(i_rst)
+        r_run_1d <= 'd0;
+    else 
+        r_run_1d <= r_run;
+end
+
 always@(posedge i_clk, posedge i_rst)   // 以片选为准
 begin
     if(i_rst)
         ro_cs <= 'd1;
     else if(w_active)
         ro_cs <= 'd0;
-    else if(r_spi_dcnt == P_USER_DATA_WIDTH-1 && r_spi_clk_cnt)   // 下降沿的时候
+    else if(w_run_negedge)   // 下降沿的时候
         ro_cs <= 'd1;
     else
         ro_cs <= ro_cs;
@@ -87,13 +105,15 @@ always@(posedge i_clk, posedge i_rst)       // 0101 标识上升下降沿
 begin
     if(i_rst)
         r_spi_clk_cnt <= 1'b0;
-    else if(!o_cs)
+    else if(r_run)
         r_spi_clk_cnt <= r_spi_clk_cnt+1;
+    else
+        r_spi_clk_cnt <= 1'b0;
 end
 
 always@(posedge i_clk, posedge i_rst)
 begin
-    if(i_rst || (r_spi_dcnt == P_USER_DATA_WIDTH-1 && r_spi_clk_cnt))
+    if(i_rst || (w_run_negedge))
         ro_ready <= 'd1;
     else if(w_active)
         ro_ready <= 'd0;
@@ -105,7 +125,7 @@ always@(posedge i_clk, posedge i_rst)
 begin
     if(i_rst)
         ro_spi_clk <= P_CPOL;
-    else if (!o_cs)
+    else if (r_run)
         ro_spi_clk <= ~ro_spi_clk;
     else 
         ro_spi_clk <= P_CPOL;
@@ -117,7 +137,7 @@ begin
         r_spi_dcnt <= 'd0;
     else if((r_spi_dcnt == P_USER_DATA_WIDTH - 1) && r_spi_clk_cnt)// 下降沿的时候
         r_spi_dcnt <= 'd0;
-    else if(!o_cs && r_spi_clk_cnt)
+    else if(r_run && r_spi_clk_cnt)
         r_spi_dcnt <= r_spi_dcnt + 'd1;
     else
         r_spi_dcnt <= r_spi_dcnt; 

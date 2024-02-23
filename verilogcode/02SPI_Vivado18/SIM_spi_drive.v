@@ -58,7 +58,7 @@ wire            w_active = ri_user_valid & o_ready;
 spi_drive#(
     .P_USER_DATA_WIDTH(P_USER_DATA_WIDTH),
     .P_READ_DATA_WIDTH(P_READ_DATA_WIDTH),
-    .P_CPOL           (1),
+    .P_CPOL           (0),
     .P_CPHL           (0)       //  01不兼容
 )spi_drive_d0
 (
