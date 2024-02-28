@@ -23,7 +23,7 @@
 module SIM_flash01();
 
 localparam      CLK_PERIOD = 10;
-localparam      P_USER_OPE_TYPE     = 2;       
+localparam      P_USER_OPE_TYPE     = 1;       
 localparam      P_USER_OPE_LEN      = 32;     
 localparam      P_READ_DATA_WIDTH   = 8;
 localparam      P_CPOL              = 0;
@@ -47,37 +47,30 @@ end
 wire                            wo_cs;
 wire                            wo_ready;
 wire                            wo_spi_clk;
+wire [7:0]                      wo_read_data;
+wire                            wo_read_valid;           
+
 wire                            wo_spi_mosi;    
- 
-wire [P_READ_DATA_WIDTH-1:0]    wo_user_data;
-wire                            wo_user_valid;
 wire                            w_write_req;
 wire                            w_read_req;
 
-wire    w_active = wo_ready & ri_user_op_valid;
 
+wire    w_active = wo_ready & ri_user_op_valid;
 
 reg [P_USER_OPE_LEN-1:0]        ri_user_op_data;        // 接收 userdata 输出 mosi  
 reg [8:0]                       ri_user_op_len;   
 reg                             ri_user_op_valid; 
 
-reg [P_USER_OPE_LEN-1:0]        r_spi_dcnt;             // 01234567
-reg                             r_spi_clk_cnt;          // 01010101
-
-reg [P_READ_DATA_WIDTH-1:0]     ri_miso;                // 接收 miso data 输出 userdata
-
-
 // 传输计数结束后，user有效和ready有效/片选 占一个spi clk,要识别下降沿 
 reg                             r_run;      
 reg                             r_run_1d;
 
-
 // clk产生周期性读写请求（8bit单位），len和cnt标识读写过程整体的开始和结束
 reg [8:0]                       ri_write_len;       // 256 bytes   
 reg [7:0]                       ri_write_data;
-
-reg [8:0]                       ri_read_len;        // 256 bytes   
-reg [7:0]                       ri_read_data;
+reg [8:0]                       ri_read_len;
+reg [7:0]                       r_miso_test_data;
+reg [4:0]                       r_miso_test_clk;
 
 reg                             ri_spi_miso;
 
@@ -97,20 +90,18 @@ spi_drive#(
     .i_user_op_valid        (ri_user_op_valid),    
     .i_user_write_data      (ri_write_data  ),  
     .i_write_len            (ri_write_len   ),         // 256   
-    .i_user_read_data       (ri_read_data   ),
     .i_read_len             (ri_read_len    ),
-    .i_spi_miso             (ri_spi_miso    ),          //  读取的数据
-    
-    .o_write_req            (w_write_req),
-    .o_read_req             (w_read_req),
-    .o_spi_mosi             (wo_spi_mosi),         
-    .o_cs                   (wo_cs),
-    .o_user_ready           (wo_ready),     
-    .o_spi_clk              (wo_spi_clk),
-    .o_user_op_data         (wo_user_data),         //  返回user操作数据
-    .o_user_op_valid        (wo_user_valid)
-);
 
+    .i_spi_miso             (ri_spi_miso    ),          //  读取的数据
+    .o_spi_mosi             (wo_spi_mosi    ),
+    .o_write_req            (w_write_req    ),
+    .o_read_req             (w_read_req     ),
+    .o_cs                   (wo_cs          ),
+    .o_user_ready           (wo_ready       ),     
+    .o_spi_clk              (wo_spi_clk     ),
+    .o_user_read_data       (wo_read_data   ),
+    .o_user_read_valid      (wo_read_valid  )
+);
 
 
 always@(posedge clk, posedge rst)   // 握手信号
@@ -140,9 +131,9 @@ end
 always@(posedge clk, posedge rst)
 begin
     if(rst) begin
-        ri_write_data <= 8'h0;
-        ri_write_len <= 'd16;
-    end else if(w_active) begin
+        ri_write_data <= 8'h55;
+        ri_write_len <= 'd16;               // bit
+    end else if(w_write_req) begin
         ri_write_data <= ri_write_data + 'd1;
     end else begin
         ri_write_data <= ri_write_data;
@@ -150,18 +141,46 @@ begin
     end
 end
 
-always@(posedge clk, posedge rst)
+//  read_req 和 miso_test_data 仅限于仿真测试
+always@(negedge wo_spi_clk, posedge rst)
 begin
     if(rst) begin
-        ri_read_data <= 'd0;
-        ri_read_len <= 'd0;
+        r_miso_test_clk <= 'd0;
+        ri_read_len <= 'd16;                // bit
         ri_spi_miso <= 'd0;
-    // end else if() begin
-
-    end else 
-        ri_spi_miso <= ri_spi_miso; 
-
+    end 
+    else if(w_read_req) begin
+        r_miso_test_clk <= 'd1;
+        ri_spi_miso <= r_miso_test_data[7];
+    end 
+    else if(r_miso_test_clk && r_miso_test_clk < 8) begin
+        r_miso_test_clk <= r_miso_test_clk + 'd1;
+        ri_spi_miso <= r_miso_test_data[7];
+    end 
+    else if(r_miso_test_clk == 8) begin
+        r_miso_test_clk <= 'd0;
+        ri_spi_miso <= r_miso_test_data[7];
+    end 
+    else begin 
+        ri_read_len <= ri_read_len;
+        r_miso_test_clk <= r_miso_test_clk;
+        ri_spi_miso <= ri_spi_miso;
+    end
 end
 
+
+always@(negedge wo_spi_clk, posedge rst)    // 下降沿产生数据
+begin
+    if(rst)
+        r_miso_test_data <= 'd1;
+    // else if(w_read_req)
+    //     r_miso_test_data <= r_miso_test_data + 'd1;
+    else if(r_miso_test_clk && r_miso_test_clk < 8)
+        r_miso_test_data <= r_miso_test_data << 1;
+    else if(r_miso_test_clk && r_miso_test_clk == 8)
+        r_miso_test_data <= (r_miso_test_data << 1) + 'h55;
+    else
+        r_miso_test_data <= r_miso_test_data;
+end
 
 endmodule
