@@ -20,13 +20,7 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module flash_drive#(
-    parameter   P_OP_MAX_LEN        =256,
-                P_USER_OPE_LEN      =32,    
-                P_READ_DATA_WIDTH   =8,  
-                P_CPOL              =0, 
-                P_CPHL              =0
-)(
+module flash_drive(
     input                           i_clk,  
     input                           i_rst,
 
@@ -50,20 +44,25 @@ module flash_drive#(
     output                          o_spi_clk
 );
 
+localparam  P_OP_MAX_LEN        =256,
+            P_USER_OPE_LEN      =32,    
+            P_READ_DATA_WIDTH   =8,  
+            P_CPOL              =0, 
+            P_CPHL              =0;
+
 
 wire     [P_USER_OPE_LEN-1:0]   wo_user_op_data;   
 wire     [8:0]                  wo_user_op_len;   
 wire                            wo_user_op_valid;
 wire     [2:0]                  wo_user_op_type;
 wire     [7:0]                  wo_user_write_data;
+
+wire     [15:0]                 wo_clk_len;      
+
 wire     [7:0]                  wi_user_read_data;
 wire                            wi_user_read_valid;
-wire     [8:0]                  wo_write_len;      
-wire     [8:0]                  wo_read_len;
 
 wire                            w_write_req;
-wire                            w_user_read_data;
-wire                            w_user_read_valid;
 wire                            w_user_ready;
 
 
@@ -83,25 +82,26 @@ spi_drive_d0
     .i_user_op_valid            (wo_user_op_valid), 
     .i_user_op_type             (wo_user_op_type),    
     .i_user_write_data          (wo_user_write_data),  
-    .i_write_len                (wo_write_len),            
-    .i_read_len                 (wo_read_len),
-    .o_write_req                (w_write_req),
+    .i_clk_len                  (wo_clk_len),            
 
-    .o_user_read_data           (w_user_read_data),
-    .o_user_read_valid          (w_user_read_valid),
+
+    .o_user_read_data           (wi_user_read_data),
+    .o_user_read_valid          (wi_user_read_valid),
     .o_user_ready               (w_user_ready),
     .o_cs                       (o_cs),     
     .o_spi_clk                  (o_spi_clk     ),
     .i_spi_miso                 (i_spi_miso    ),          
-    .o_spi_mosi                 (o_spi_mosi    )
+    .o_spi_mosi                 (o_spi_mosi    ),
+    .o_user_write_req           (w_write_req   )   
+
 );
 
 flash_ctl#(
-    .P_OP_MAX_LEN               (256 ),
-    .P_USER_OPE_LEN             (32  ),
-    .P_READ_DATA_WIDTH          (8   ),
-    .P_CPOL                     (0   ),
-    .P_CPHL                     (0   )
+    .P_OP_MAX_LEN               (P_OP_MAX_LEN),
+    .P_USER_OPE_LEN             (P_USER_OPE_LEN),
+    .P_READ_DATA_WIDTH          (P_READ_DATA_WIDTH),
+    .P_CPOL                     (P_CPOL),
+    .P_CPHL                     (P_CPHL)
 )flash_ctl_c0
 (
     .i_clk                      (i_clk),
@@ -120,17 +120,17 @@ flash_ctl#(
     .i_write_eop                (i_write_eop),
     .i_write_valid              (i_write_valid),
 
-    .o_user_op_data             (wo_user_op_data),     // 指令+地址    
-    .o_user_op_len              (wo_user_op_len),      
-    .o_user_op_valid            (wo_user_op_valid),           
-    .o_user_op_type             (wo_user_op_type),
-    .o_user_write_data          (wo_user_write_data),  // 并行，写到spi-flash  fifo缓冲  
-    .o_write_len                (wo_write_len),          
-    .o_read_len                 (wo_read_len),
-    .i_user_write_req           (w_write_req),
-    .i_user_read_data           (w_user_read_data),   // 并行，从spi-flash读到的数据，
-    .i_user_read_valid          (w_user_read_valid),
-    .i_user_ready               (w_user_ready)
+    .o_spi_op_data              (wo_user_op_data),     // 指令+地址    
+    .o_spi_op_len               (wo_user_op_len),      
+    .o_spi_op_valid             (wo_user_op_valid),           
+    .o_spi_op_type              (wo_user_op_type),
+    .o_spi_write_data           (wo_user_write_data),  // 并行，写到spi-flash  fifo缓冲  
+    .o_clk_len                  (wo_clk_len),          
+ 
+    .i_spi_write_req            (w_write_req),
+    .i_spi_read_data            (wi_user_read_data),   // 并行，从spi-flash读到的数据，
+    .i_spi_read_valid           (wi_user_read_valid),
+    .i_spi_ready                (w_user_ready)
 );
 
 

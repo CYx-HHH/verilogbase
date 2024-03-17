@@ -42,8 +42,7 @@ module spi_drive#(
     input                           i_user_op_valid,    
     input   [2:0]                   i_user_op_type,
     input   [7:0]                   i_user_write_data,  
-    input   [8:0]                   i_write_len,        // 256  
-    input   [8:0]                   i_read_len,
+    input   [15:0]                  i_clk_len,
 
     input                           i_spi_miso,         //  和flash操作接口
     output                          o_spi_mosi,         
@@ -68,7 +67,7 @@ reg                             r_run_1d;
 reg                             ro_spi_mosi;    
 reg [P_USER_OPE_LEN-1:0]        ri_user_op_data;        // 接收 userdata 输出 mosi  
 reg [2:0]                       ri_user_op_type;
-reg [15:0]                      r_clk_len; 
+reg [15:0]                      ri_clk_len; 
 
 reg [P_USER_OPE_LEN-1:0]        r_spi_dcnt;             // 01234567
 reg                             r_spi_clk_cnt;          // 01010101
@@ -102,7 +101,7 @@ begin
         r_run <= 'd0;
     else if(w_active)
         r_run <= 'd1;
-    else if(r_spi_dcnt == r_clk_len - 1 && r_spi_clk_cnt)
+    else if(r_spi_dcnt == ri_clk_len - 1 && r_spi_clk_cnt)
         r_run <= 'd0;
     else 
         r_run <= r_run;
@@ -164,7 +163,7 @@ always@(posedge i_clk, posedge i_rst)   //  0 1 2 3 ...
 begin
     if(i_rst)
         r_spi_dcnt <= 'd0;
-    else if((r_spi_dcnt == r_clk_len - 1) && r_spi_clk_cnt)    // 下降沿的时候
+    else if((r_spi_dcnt == ri_clk_len - 1) && r_spi_clk_cnt)    // 下降沿的时候
         r_spi_dcnt <= 'd0;
     else if(r_run && r_spi_clk_cnt)
         r_spi_dcnt <= r_spi_dcnt + 'd1;
@@ -172,21 +171,14 @@ begin
         r_spi_dcnt <= r_spi_dcnt; 
 end
 
-always@(posedge i_clk, posedge i_rst) 
+always@(posedge i_clk, posedge i_rst)
 begin
     if(i_rst)
-        r_clk_len <= 'd0;  
+        ri_clk_len <= 'd0;
     else if(w_active)
-        if(ri_user_op_type == 0)
-            r_clk_len <= i_user_op_len;
-        else if(ri_user_op_type == 1)
-            r_clk_len <= i_user_op_len + i_read_len;
-        else if(ri_user_op_type == 2)
-            r_clk_len <= i_user_op_len + i_write_len;
-        else
-            r_clk_len <= r_clk_len;
-    else
-        r_clk_len <= r_clk_len;
+        ri_clk_len <= i_clk_len;
+    else 
+        ri_clk_len <= ri_clk_len;
 end
 
 always@(posedge i_clk, posedge i_rst)
@@ -218,9 +210,9 @@ begin
     else if(w_active)
         ro_spi_mosi <= i_user_op_data[P_USER_OPE_LEN - 1];
     else if(r_spi_clk_cnt && !w_run_negedge)                //  写指令+地址
-        if(r_spi_dcnt <= P_USER_OPE_LEN - 1)
+        if(r_spi_dcnt <= i_user_op_len - 1)
             ro_spi_mosi <= ri_user_op_data[P_USER_OPE_LEN - 1];
-        else if(ri_user_op_type == 2 && r_spi_dcnt < r_clk_len)
+        else if(ri_user_op_type == 2 && r_spi_dcnt < ri_clk_len)
             ro_spi_mosi <= ri_write_data[7];
         else 
             ro_spi_mosi <= ro_spi_mosi;
@@ -234,7 +226,7 @@ begin
     if(i_rst)
         ro_read_data <='d0;
     else if(ri_user_op_type == 1 && !r_spi_clk_cnt)
-        if(r_spi_dcnt < r_clk_len)
+        if(r_spi_dcnt < ri_clk_len)
             ro_read_data <= {ro_read_data[P_READ_DATA_WIDTH-2 : 0], i_spi_miso};
         else 
             ro_read_data <= ro_read_data;
@@ -258,7 +250,7 @@ begin
     if(i_rst)
         ro_user_write_req <= 'd0;
     else if(ri_user_op_type == 2 && !r_spi_clk_cnt)
-        if((r_spi_dcnt < r_clk_len - 5 && r_write_clk == 7)|| (r_spi_dcnt == P_USER_OPE_LEN - 2))
+        if((r_spi_dcnt < ri_clk_len - 5 && r_write_clk == 7)|| (r_spi_dcnt == i_user_op_len - 2))
             ro_user_write_req <= 'd1;
         else 
             ro_user_write_req <= 'd0;
@@ -280,7 +272,7 @@ begin
     if(i_rst)
         r_write_clk <= 'd0; 
     else if(ri_user_op_type == 2 && !r_spi_clk_cnt)
-        if(w_run_negedge || (r_spi_dcnt == r_clk_len - 1 && r_write_clk == 8))
+        if(w_run_negedge || (r_spi_dcnt == ri_clk_len - 1 && r_write_clk == 8))
             r_write_clk <= 'd0;
         else if(ro_user_write_req_1d)
             r_write_clk <= 'd1;
@@ -297,7 +289,7 @@ begin
     if(i_rst)
         ri_write_data <= 'd0;
     else if(ri_user_op_type == 2)
-        if(ro_user_write_req_1d)
+        if(ro_user_write_req)
             ri_write_data <= i_user_write_data;
         else if(r_write_clk && r_write_clk <= 8 && r_spi_clk_cnt)        // 并转串
             ri_write_data <= ri_write_data<< 1;         
@@ -312,11 +304,11 @@ begin
     if(i_rst)
         r_read_clk <= 'd0;
     else if(ri_user_op_type == 1 && r_spi_clk_cnt)
-        if(r_read_clk == 8 && r_spi_dcnt < r_clk_len - 5)
+        if(r_read_clk == 8 && r_spi_dcnt < ri_clk_len - 5)
             r_read_clk <= 'd1;
-        else if(r_read_clk == 8 && r_spi_dcnt == r_clk_len - 1)
+        else if(r_read_clk == 8 && r_spi_dcnt == ri_clk_len - 1)
             r_read_clk <= 'd0;
-        else if(r_read_clk || (r_spi_dcnt == P_USER_OPE_LEN-1))
+        else if(r_read_clk || (r_spi_dcnt == i_user_op_len-1))
             r_read_clk <= r_read_clk + 'd1;
         else 
             r_read_clk <= r_read_clk;
