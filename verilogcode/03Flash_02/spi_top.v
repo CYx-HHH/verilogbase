@@ -21,7 +21,8 @@
 
 
 module spi_top(
-    input           i_clk     ,           
+    input           i_clkp    , 
+    input           i_clkn    ,          
     input           i_spi_miso,
     output          o_spi_mosi,
     output          o_cs      ,
@@ -47,25 +48,35 @@ wire                            wi_write_valid;
 wire                            wo_read_sop;
 wire                            wo_read_eop;
 
-wire                            w_clk_5Mhz;
-wire                            w_clk_5Mhz_lock;
-wire                            w_clk_5Mhz_rst; 
+wire                            w_clk_10Mhz;
+wire                            w_clk_10Mhz_lock;
+wire                            w_clk_10Mhz_rst; 
+wire                            i_clk;
+
+assign      w_clk_10Mhz_rst = ~w_clk_10Mhz_lock;
 
 
-assign      w_clk_5Mhz_rst = ~w_clk_5Mhz_lock;
+IBUFGDS IBUFGDS_i (     
+                    .O (i_clk),
+
+                    .I (i_clkp),
+
+                    .IB (i_clkn)
+);
+
 
 
 SYSTEM_CLK system_clk_s0
 (
-    .clk_out1   (w_clk_5Mhz),     
-    .locked     (w_clk_5Mhz_lock),      
+    .clk_out1   (w_clk_10Mhz),     
+    .locked     (w_clk_10Mhz_lock),      
     .clk_in1    (i_clk)
 );
 
 
 flash_drive flash_drive_f0(
-    .i_clk                  (w_clk_5Mhz),  
-    .i_rst                  (w_clk_5Mhz_rst),
+    .i_clk                  (w_clk_10Mhz),  
+    .i_rst                  (w_clk_10Mhz_rst),
     .i_op_typ               (wi_op_typ),
     .i_op_addr              (wi_op_addr),
     .i_op_num               (wi_op_num),
@@ -93,8 +104,8 @@ user_gen#(
     .P_USER_OPE_LEN      (32),
     .P_READ_DATA_WIDTH   (8)
 )user_gen_data_u0(
-    .i_clk                  (w_clk_5Mhz),  
-    .i_rst                  (w_clk_5Mhz_rst),
+    .i_clk                  (w_clk_10Mhz),  
+    .i_rst                  (w_clk_10Mhz_rst),
 
     .i_op_ready             (wo_ready),
     .i_read_data            (wo_read_data),

@@ -135,6 +135,7 @@ assign      w_spi_active    = i_spi_ready & ro_spi_op_valid;
 fifo_flash_2u fifo_flash_2u_0   // flash to user
 (
     .clk    (i_clk),
+    .srst   (i_rst),
     .din    (ri_spi_read_data), 
     .wr_en  (r_fifo_2u_wren),
     .rd_en  (r_fifo_2u_rden), 
@@ -146,6 +147,7 @@ fifo_flash_2u fifo_flash_2u_0   // flash to user
 fifo_u2_flash fifo_u2_flash_0   // user to flash
 (
     .clk    (i_clk),
+    .srst   (i_rst),
     .din    (ri_write_data),   
     .wr_en  (ri_write_valid),   
     .rd_en  (i_spi_write_req),   
